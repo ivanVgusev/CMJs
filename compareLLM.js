@@ -33,7 +33,7 @@ function textNormalization(text) {
 }
 
 // ngramSize — размер "окна", то есть, количество слов, которое будет в одной группе
-function textToNgrams(normalizedText, ngramSize = 10) {
+function textToNgrams(normalizedText, ngramSize = 6, hopLength = 3) {
     var textSplit = normalizedText.split(" ");
     var ngramGroupsAmount = textSplit.length / ngramSize;
     // в хвосте может может оставаться n-грамма с меньшим числом элементов
@@ -44,35 +44,83 @@ function textToNgrams(normalizedText, ngramSize = 10) {
     for (var i = 0; i < ngramGroupsAmount; i++) {
         var ngram = textSplit.slice(start, start + ngramSize);
         ngramGroups.push(ngram)
-        start += ngramSize
+        start += hopLength
     }
     return ngramGroups
 }
 
-// возможные различия в файлах: 
-// edit
-// deletion
-// inserion
-function findDifference(ngramGroups1, ngramGroups2) {
-    // var differentNgrams = {};
-    // for (var i = 0; i < ngramGroups1.length; i++) {
-    //     if (!isArraysEqual(ngramGroups1[i], ngramGroups2[i])) {
-    //         differentNgrams[i] = [ngramGroups1[i], ngramGroups2[i]]
-    //     }
-    // }
-    
-    return differentNgrams
+function levenshteinDistance(a, b) {
+  const matrix = [];
+
+  // Initialize the matrix
+  for (let i = 0; i <= a.length; i++) {
+    matrix[i] = [];
+    for (let j = 0; j <= b.length; j++) {
+      matrix[i][j] = 0;
+    }
+  }
+
+  // Base case initialization
+  for (let i = 0; i <= a.length; i++) {
+    matrix[i][0] = i; // Cost of deleting all characters from a
+  }
+  for (let j = 0; j <= b.length; j++) {
+    matrix[0][j] = j; // Cost of inserting all characters from b
+  }
+
+  // Populate the matrix
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,     // deletion
+        matrix[i][j - 1] + 1,     // insertion
+        matrix[i - 1][j - 1] + (a[i-1] === b[j-1] ? 0 : 1)  // substitution
+      );
+    }
+  }
+
+  // Return the Levenshtein distance, which is
+  // located in the bottom-right corner of the matrix
+  return matrix[a.length][b.length];
 }
 
+
 // два текста с небольшими отличиями, нагенерированные LLM
-var text1 = "Солнечный луч танцевал на полированной столешнице, освещая крошку от только что съеденного круассана. Но здесь, в уютном полумраке кофейни, царили покой и аромат свежего кофе. Молодая женщина у окна смотрела на пару голубей, деливших брошенную булку. Ее ноутбук был закрыт, а блокнот лежал рядом нетронутый. Она просто наслаждалась редкой минутой бездумного отдыха. В этот момент дверь с колокольчиком распахнулась, впустив порцию свежего морского воздуха. Вошел мужчина в светлом свитере, огляделся и, улыбнувшись, направился к ее столику. «Можно?» — спросил он, и в его глазах читалась добрая, открытая уверенность. Она кивнула, и разговор завязался сам собой, легкий и непринужденный. Они говорили о книгах, о море и о том, как странно иногда встречаются родственные души. Когда он встал, чтобы заказать еще два капучино, она поймала себя на мысли, что это утро стало самым счастливым за долгие месяцы. За окном над гаванью ярко светило солнце, предвещая прекрасный день.";
-var text2 = "Солнечный луч танцевал на полированной столешнице, освещая крошку от только что съеденного круассана. За окном кипела жизнь оживленной набережной, но здесь, в уютном полумраке кофейни, царили покой и аромат свежего кофе. Она наблюдала, как старик на скамейке кормит с руки наглых воробьев. Ее ноутбук был закрыт, а блокнот лежал рядом нетронутый. Она просто наслаждалась редкой минутой бездумного отдыха. Вдруг дверь с мелодичным звоном открылась, впустив шум прибоя и крики чаек. Вошел мужчина в светлом свитере, огляделся и, улыбнувшись, направился к ее столику. «Можно?» — спросил он, и в его глазах читалась добрая, открытая уверенность. Она сделала утвердительный жест, и слова потекли легко, будто они были старыми знакомыми. Они говорили о книгах, о море и о том, как странно иногда встречаются родственные души. Пока он шел к стойке, чтобы повторить заказ, она вдруг осознала, что давно не чувствовала такого безоблачного спокойствия. За окном над гаванью ярко светило солнце, предвещая прекрасный день.";
+var text1 = "Но солнечный луч танцевал на полированной столешнице, освещая крошку от только что съеденного круассана.";
+var text11 = "Солнечный луч скользил по полированной столешнице, освещая крошку от съеденного круассана."
+var text2 = "Машина летела по трассе и не хотела останавливаться. Все были в ужасе и не знали, что же делать.";
 
 var text1Normalized = textNormalization(text1);
+var text11Normalized = textNormalization(text11);
 var text2Normalized = textNormalization(text2);
 
 var text1Ngrams = textToNgrams(text1Normalized);
+var text11Ngrams = textToNgrams(text11Normalized);
 var text2Ngrams = textToNgrams(text2Normalized);
 
-var diff = findDifference(text1Ngrams, text2Ngrams)
-console.log(diff)
+// var text1List = text1Normalized.split(" ");
+// var text2List = text2Normalized.split(" ");
+
+function calculateMean(arr) {
+  if (arr.length === 0) {
+    return 0; // Handle empty array case
+  }
+  let sum = 0;
+  for (const number of arr) {
+    sum += number;
+  }
+  return sum / arr.length;
+}
+
+function calcAvgLevenshtein(text1, text2) {
+    var lev = []
+    for (var elem1 = 0; elem1 < text1.length; elem1++) {
+        for (var elem2 = 0; elem2 < text2.length; elem2++) {
+                lev.push(levenshteinDistance(text1[elem1].join(" "), text2[elem2].join(" ")))
+        }
+    }
+    return lev
+}
+
+console.log(calculateMean(calcAvgLevenshtein(text1Ngrams, text2Ngrams)))
+console.log(calculateMean(calcAvgLevenshtein(text1Ngrams, text11Ngrams)))
