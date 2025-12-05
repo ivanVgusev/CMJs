@@ -49,43 +49,22 @@ function textToNgrams(normalizedText, ngramSize = 6, hopLength = 3) {
     return ngramGroups
 }
 
-function levenshteinDistance(a, b) {
-  const matrix = [];
-
-  // Initialize the matrix
-  for (let i = 0; i <= a.length; i++) {
-    matrix[i] = [];
-    for (let j = 0; j <= b.length; j++) {
-      matrix[i][j] = 0;
-    }
-  }
-
-  // Base case initialization
-  for (let i = 0; i <= a.length; i++) {
-    matrix[i][0] = i; // Cost of deleting all characters from a
-  }
-  for (let j = 0; j <= b.length; j++) {
-    matrix[0][j] = j; // Cost of inserting all characters from b
-  }
-
-  // Populate the matrix
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,     // deletion
-        matrix[i][j - 1] + 1,     // insertion
-        matrix[i - 1][j - 1] + (a[i-1] === b[j-1] ? 0 : 1)  // substitution
-      );
-    }
-  }
-
-  // Return the Levenshtein distance, which is
-  // located in the bottom-right corner of the matrix
-  return matrix[a.length][b.length];
+function compareStrings(oldText, newText) {
+    // Разбиваем на строки
+    const oldLines = oldText.split(" ");
+    const newLines = newText.split(" ");
+    
+    // Создаем Set для быстрого поиска (аналог THashedStringList)
+    const oldLinesSet = new Set(oldLines);
+    
+    // Находим строки, которые есть в новом, но отсутствуют в старом
+    const resultLines = newLines.filter(line => {
+        return !oldLinesSet.has(line) && line.trim() !== '';
+    });
+    
+    return resultLines.join('\n');
 }
 
-
-// два текста с небольшими отличиями, нагенерированные LLM
 var text1 = "Но солнечный луч танцевал на полированной столешнице, освещая крошку от только что съеденного круассана.";
 var text11 = "Солнечный луч скользил по полированной столешнице, освещая крошку от съеденного круассана."
 var text2 = "Машина летела по трассе и не хотела останавливаться. Все были в ужасе и не знали, что же делать.";
@@ -98,29 +77,4 @@ var text1Ngrams = textToNgrams(text1Normalized);
 var text11Ngrams = textToNgrams(text11Normalized);
 var text2Ngrams = textToNgrams(text2Normalized);
 
-// var text1List = text1Normalized.split(" ");
-// var text2List = text2Normalized.split(" ");
-
-function calculateMean(arr) {
-  if (arr.length === 0) {
-    return 0; // Handle empty array case
-  }
-  let sum = 0;
-  for (const number of arr) {
-    sum += number;
-  }
-  return sum / arr.length;
-}
-
-function calcAvgLevenshtein(text1, text2) {
-    var lev = []
-    for (var elem1 = 0; elem1 < text1.length; elem1++) {
-        for (var elem2 = 0; elem2 < text2.length; elem2++) {
-                lev.push(levenshteinDistance(text1[elem1].join(" "), text2[elem2].join(" ")))
-        }
-    }
-    return lev
-}
-
-console.log(calculateMean(calcAvgLevenshtein(text1Ngrams, text2Ngrams)))
-console.log(calculateMean(calcAvgLevenshtein(text1Ngrams, text11Ngrams)))
+console.log(compareStrings(text11Normalized, text1Normalized))
