@@ -1,21 +1,6 @@
-// обозначение функций, которые нужно дописать для полноценной работы
-function tagsRemoval(text) {
-    // нужна функция для удаления тэгов docx/pdf
-    return text
-}
-
-function OCR(pdf) {
-    // нужна реализация OCR
-    var text = pdf
-    return text
-}
-
-
 // вспомогательные функции
-function isArraysEqual(firstArray, secondArray) { 
-    return firstArray.toString() === secondArray.toString(); 
-}
 
+// примитивная нормализация текста
 function textNormalization(text) {
     var normalizedText;
     // удаление пунктуации
@@ -30,72 +15,139 @@ function textNormalization(text) {
     return normalizedText
 }
 
-// ngramSize — размер "окна", то есть, количество слов, которое будет в одной группе
-function textToNgrams(normalizedText, ngramSize = 10, hopLength = 1) {
-    var textSplit = normalizedText.split(" ");
-    var ngramGroupsAmount = textSplit.length / ngramSize;
-    // в хвосте может может оставаться n-грамма с меньшим числом элементов
-    ngramGroupsAmount = Math.ceil(ngramGroupsAmount);
-    
-    var start = 0;
-    var ngramGroups = [];
-    for (var i = 0; i < ngramGroupsAmount; i++) {
-        var ngram = textSplit.slice(start, start + ngramSize);
-        ngramGroups.push(ngram)
-        start += hopLength
-    }
-    return ngramGroups
-}
 
-function compareStrings(oldText, newText) {
-    // Разбиваем на строки
-    const oldLines = oldText.split(" ");
-    const newLines = newText.split(" ");
-    
-    // Создаем Set для быстрого поиска (аналог THashedStringList)
-    const oldLinesSet = new Set(oldLines);
-    
-    // Находим строки, которые есть в новом, но отсутствуют в старом
-    const resultLines = newLines.filter(line => {
-        return !oldLinesSet.has(line) && line.trim() !== '';
-    });
-    
-    return resultLines.join('\n');
+// сравнение массивов
+function isArraysEqual(firstArray, secondArray) { 
+    return firstArray.toString() === secondArray.toString(); 
 }
 
 
-function diffText(text1, text2) {
-    var wordText1 = text1[0];
-    var wordText2 = text2[0];
+// взвешенное сравнение массивов
+function isArraysEqualWeighted(firstArray, secondArray) {
+    // на значении == 95 результат идентичен простому сравнению isArrayEqual
+    var threshold = 95
+    var distance = arraysLevenshteinDistance(firstArray, secondArray);
+    var maxLength = Math.max(firstArray.length, secondArray.length);
     
-    var countShift = 0
-    while (wordText1 != wordText2) {
-
-        countShift++
-    }
-    return countShift
+    if (maxLength === 0) return true;
+    
+    var similarity = (1 - distance / maxLength) * 100;
+    return similarity >= threshold;
 }
 
 
-function longestSubsequence(oldTextNgram, newTextNgram) {
-    var sameNgramIdxOne = [];
-    var sameNgramIdxTwo = [];
-    for (var ngramTextOne = 0; ngramTextOne < oldTextNgram.length; ngramTextOne++) {
-        for (var ngramTextTwo = 0; ngramTextTwo < newTextNgram.length; ngramTextTwo++) {
-            if (isArraysEqual(oldTextNgram[ngramTextOne], newTextNgram[ngramTextTwo])) {
-                sameNgramIdxOne.push(ngramTextOne);
-                sameNgramIdxTwo.push(ngramTextTwo);
+// Функция расстояния Левенштейна для массивов
+function arraysLevenshteinDistance(arr1, arr2) {
+    var m = arr1.length;
+    var n = arr2.length;
+    
+    if (m === 0) return n;
+    if (n === 0) return m;
+    
+    var dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+    
+    for (var i = 0; i <= m; i++) dp[i][0] = i;
+    for (var j = 0; j <= n; j++) dp[0][j] = j;
+    
+    for (var i = 1; i <= m; i++) {
+        for (var j = 1; j <= n; j++) {
+            if (arr1[i - 1] === arr2[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1];
+            } else {
+                dp[i][j] = Math.min(
+                    dp[i - 1][j] + 1,
+                    dp[i][j - 1] + 1,
+                    dp[i - 1][j - 1] + 1
+                );
             }
         }
     }
-    var idealText1 = [...Array(oldTextNgram.length).keys()];
-    var diffNgramIdxOne = idealText1.filter(item => !sameNgramIdxOne.includes(item));
+    
+    return dp[m][n];
+}
 
-    var idealText2 = [...Array(newTextNgram.length).keys()];
-    var diffNgramIdxTwo = idealText2.filter(item => !sameNgramIdxTwo.includes(item));
 
-    // return [sameNgramIdxOne, sameNgramIdxTwo]
-    return [diffNgramIdxOne, diffNgramIdxTwo]
+// конвертер текст (строковый) -> чанки
+// chunkSize — размер "окна", то есть, количество слов, которое будет в одной группе
+// hopLength — размер сдвига (надежнее всего установить = 1)
+function textToChunks(normalizedText, chunkSize = 10, hopLength = 1) {
+    var textSplit = normalizedText.split(" ");
+    var chunkGroups = [];
+    
+    // Используем цикл while, пока можем создать очередной чанк
+    var start = 0;
+    while (start + chunkSize <= textSplit.length) {
+        var chunk = textSplit.slice(start, start + chunkSize);
+        chunkGroups.push(chunk);
+        start += hopLength;
+    }
+    
+    // Добавляем последний неполный чанк
+    if (start < textSplit.length) {
+        var lastChunk = textSplit.slice(start);
+        chunkGroups.push(lastChunk);
+    }
+    
+    return chunkGroups;
+}
+
+
+// сравнение чанков
+function compareChunks(chunksTextOne, chunksTextTwo, weighted=false) {
+    // переключатель weighted/non-weighted (использовать взвешенное сравнение/простое)
+    var comparisonFunc;
+    if (weighted) {
+        comparisonFunc = isArraysEqualWeighted
+    } else {
+        comparisonFunc = isArraysEqual
+    }
+
+    // индексы совпадающих чанков (считаем именно их, потому что при полном переборе индексы несовпадающих непоказательны) 
+    var sameChunksIdxOne = [];
+    var sameChunksIdxTwo = [];
+    for (var chunkTextOne = 0; chunkTextOne < chunksTextOne.length; chunkTextOne++) {
+        for (var chunkTextTwo = 0; chunkTextTwo < chunksTextTwo.length; chunkTextTwo++) {
+            if (comparisonFunc(chunksTextOne[chunkTextOne], chunksTextTwo[chunkTextTwo])) {
+                sameChunksIdxOne.push(chunkTextOne);
+                sameChunksIdxTwo.push(chunkTextTwo);
+            }
+        }
+    }
+    // сравниваем с полным совпадениям (все индексы в массиве) и берем несовпадения
+    var rangeTextOne = [...Array(chunksTextOne.length).keys()];
+    var diffChunksIdxOne = rangeTextOne.filter(item => !sameChunksIdxOne.includes(item));
+
+    // сравниваем с полным совпадениям (все индексы в массиве) и берем несовпадения
+    var rangeTextTwo = [...Array(chunksTextTwo.length).keys()];
+    var diffChunksIdxTwo = rangeTextTwo.filter(item => !sameChunksIdxTwo.includes(item));
+
+    // объединяем
+    var mergedUnique = new Set([...diffChunksIdxOne, ...diffChunksIdxTwo])
+    return mergedUnique
+}
+
+
+// бьем на группы по изменениям
+// (в contextLength можно задать размер окна для конкретной модели; еще лучше было бы реализовать обтекаемость по предложениям,
+// то есть, чтобы группа не просто обрезалась на слове, а выбирала ближайшее полное предложение и как-то центрировалась 
+// относительно изменений внутри для более полного ответа мождели)
+function groupingDiffs(diffs, contextLength=100) {
+    var groups = [];
+    var newGroup = [];
+    for (elem of diffs) {
+        if (newGroup.length === 0) {
+            newGroup.push(elem)
+        } else {
+            if (elem - newGroup[0] < contextLength) {
+                newGroup.push(elem)
+            } else {
+            groups.push(newGroup);
+            newGroup = [];
+            }
+        }
+    }
+    groups.push(newGroup)
+    return groups
 }
 
 
@@ -117,15 +169,12 @@ try {
 var text1Normalized = textNormalization(text1);
 var text2Normalized = textNormalization(text2);
 
-var text1Ngrams = textToNgrams(text1Normalized);
-var text2Ngrams = textToNgrams(text2Normalized);
+var text1Chunks = textToChunks(text1Normalized);
+var text2Chunks = textToChunks(text2Normalized);
 
-// console.log(compareStrings(text11Normalized, text1Normalized))
-// console.log(compareStrings(text1Normalized, text11Normalized))
+var diffs = compareChunks(text1Chunks, text2Chunks, weighted=true);
+var diffsWeighted = compareChunks(text1Chunks, text2Chunks, weighted=false);
 
-// console.log(text11Ngrams[0], text11Ngrams[1], text11Ngrams[2], text11Ngrams[3])
-// console.log(text1Ngrams[0], text1Ngrams[1], text1Ngrams[2])
+var diffsGroups = groupingDiffs(diffs)
 
-console.table(longestSubsequence(text1Ngrams, text2Ngrams))
-
-console.log(compareStrings(text1Normalized, text2Normalized))
+console.table(diffsGroups)

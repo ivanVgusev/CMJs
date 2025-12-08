@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "diff": "^8.0.2",
     "natural": "^8.1.0"
   }
 }
